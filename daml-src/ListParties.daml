@@ -1,0 +1,36 @@
+module ListParties where
+
+import Daml.Script
+import Provenance
+import DA.List (find)
+
+-- | Idempotent bootstrap: reuse the role parties if they already exist on the
+-- ledger (the sandbox persists them for its lifetime), else allocate. Then
+-- create the opening hold via a genuine TWO-PARTY create (submitMulti), and
+-- print everything the JSON API client needs. Safe to re-run.
+run : Script ()
+run = script do
+  known <- listKnownParties
+  let findP hint = fmap (\p -> p.party) $ find (\i -> i.displayName == Some hint) known
+  issuer  <- case findP "Issuer" of
+    Some p -> pure p
+    None -> allocatePartyWithHint "Issuer" (PartyIdHint "Issuer")
+  holder  <- case findP "Holder" of
+    Some p -> pure p
+    None -> allocatePartyWithHint "Holder" (PartyIdHint "Holder")
+  auditor <- case findP "Auditor" of
+    Some p -> pure p
+    None -> allocatePartyWithHint "Auditor" (PartyIdHint "Auditor")
+  debug $ "issuer=" <> show issuer
+  debug $ "holder=" <> show holder
+  debug $ "auditor=" <> show auditor
+  now <- getTime
+  -- Two-party create: both signatories authorise ONE submission. This is the
+  -- flow the Oct-3 probe could not express with a single-party createCmd
+  -- ("missing authorization from 'Holder'").
+  cid <- submitMulti [issuer, holder] [auditor] do
+    createCmd HeldPayment with
+      issuer; holder; auditor
+      amount = 4200.0; currency = "USD"
+      heldAt = now; reference = "PAY-4200-BOOTSTRAP"
+  debug $ "held_cid=" <> show cid

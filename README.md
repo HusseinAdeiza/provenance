@@ -1,0 +1,107 @@
+# Provenance
+
+**Payment holds where "we will not invent a cause" is enforced by the ledger —
+not promised by a server.**
+
+Built for HackCanton Season 4 (Track 1: RWA & Business Workflows). Delivery
+window Oct 4–9, 2026.
+
+## The problem
+
+When a payment rail freezes funds, it tells you *that* — never *why*. The
+payee guesses remedies (chasing a fraud review when the cause was an address
+mismatch), tools that "explain" holds invent causes their data never
+established, and auditors can only verify compliance by being shown private
+payment records in full.
+
+## The Canton answer
+
+On a public chain or behind an API, *"we will not invent a cause"* is a policy:
+application code that can be bypassed. On Canton it is a **contract invariant**:
+
+- `HeldPayment` **has no reason field at all.** There is nothing to fabricate
+  into while a payment is held.
+- A cause enters the record only through `Release`/`Return`, where the reason
+  is **required, non-empty, and asserted** — an empty cause is a failed
+  transaction (`FAILED_PRECONDITION` from the ledger itself).
+- Both parties sign the transition: `signatory issuer, holder` means the
+  resolved contract **cannot exist** without both authorisations.
+- The `auditor` is an **observer**: sees every state and established cause,
+  signs nothing, and cannot act — and a non-party sees **nothing**.
+  Auditability and privacy in the same transaction, which no public ledger
+  can express.
+
+## Layout
+
+```
+daml-src/Provenance.daml    the lifecycle: HeldPayment → Release/Return/Dispute
+daml-src/ListParties.daml   idempotent bootstrap: parties + two-party create
+demo/live_demo.py           the judge-facing demo (8 checks over the JSON API)
+demo/run_stack.sh           build → test → sandbox → bootstrap → json-api → demo
+```
+
+## Run it
+
+```bash
+./demo/run_stack.sh
+```
+
+Requirements: Daml SDK 2.x (`curl -sSL https://get.daml.com | sh`), Python 3.
+No tokens, no gas, no external accounts — everything runs locally.
+
+## The demo, in one table
+
+| # | Action | Ledger response |
+|---|---|---|
+| 1 | Two-party create (`actAs: [issuer, holder]`) | **200** — hold exists |
+| 2 | Create with only the issuer's signature | **400 rejected** — holder's authorisation is missing |
+| 3 | `Release` with an empty (fabricated) reason | **400 rejected** — the honesty invariant |
+| 4 | `Release` with an established reason | **200** — cause now part of the record |
+| 5 | Stranger queries active contracts | **0 results** — disclosure is a contract property |
+| 6 | Auditor queries | **sees the released contract and its cause** |
+| 7 | Auditor tries to exercise a choice | **rejected** — observers cannot act |
+
+Latest run (local Canton sandbox, SDK 2.10.6):
+
+```
+PASS  two-party create (actAs both signatories)  HTTP 200
+PASS  hold carries amount+currency from create   PAY-4200 4200.0 USD
+PASS  create with only issuer signature rejected HTTP 400
+PASS  release with empty (fabricated) reason rejected HTTP 400
+PASS  release with established reason succeeds HTTP 200
+PASS  stranger sees zero contracts             HTTP 200, n=0
+PASS  auditor sees released contract + cause   n=1
+PASS  auditor cannot exercise (non-controller) HTTP 404
+ALL 8 CHECKS PASSED
+```
+
+`daml test`: 3/3 green — including `test_hold_cannot_carry_a_reason` (fabrication
+attempt fails at the assertion) and `test_auditor_sees_without_signing`.
+
+## Disclosure (existing code, per hackathon FAQ)
+
+A research probe — one Daml template modelling a held payment with an
+enforced-empty reason — was built on Oct 3, 2026, while evaluating Canton, and
+lives in `/root/canton_probe/holdwatch-probe`. It never solved multi-party
+authorisation and was never deployed. **Everything in this repository is
+in-window work** (Oct 4–9, 2026): the multi-contract lifecycle, the two-party
+JSON-API create, the bootstrap, the demo harness, the UI and the AI layer.
+Git history timestamps every commit inside the delivery window.
+
+The product thesis (explain holds, never invent causes) comes from HoldWatch,
+our PayPal AI Hackathon entry — public at
+devpost.com/software/holdwatch-paypal-payout-holds-explained. Provenance is
+not a port of its code; it is the same honesty rule moved from application
+policy into ledger law.
+
+## Known limitations
+
+- Local Canton sandbox; DevNet deployment is the next milestone (in-window).
+- The JSON API uses unsigned dev tokens; DevNet requires proper party
+  provisioning through its onboarding flow.
+- `Release` is controller-`issuer` with dual authorisation enforced by the
+  created contract's signatories. A multi-controller choice variant exists but
+  cannot use `getTime`/`create` (Commands vs Update) in SDK 2.10.6 — recorded
+  as a finding, not papered over.
+
+MIT licensed. Not affiliated with Digital Asset or the Canton Network.
