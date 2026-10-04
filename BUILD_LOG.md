@@ -103,6 +103,17 @@ Repo: github.com/HusseinAdeiza/provenance-site (dist/ committed — Render
 builder has no ledger, so the gate runs locally at build time; documented in
 render.yaml).
 
+**D14 — DevNet is NOT reachable in-window; LocalNet is the honest answer.**
+Researched the actual onboarding path (docs.canton.network): DevNet requires a
+Super Validator sponsor, VPN credentials, an egress-IP allowlist entry, and
+**2–4 weeks approval** (validator application via canton.foundation). Our
+deadline is Oct 9. The hackathon FAQ explicitly accepts DevNet/TestNet/
+**LocalNet** for judging, so the demo stands on the local sandbox — which is
+also the only environment where the eval gate (proof.sh) can run. Pilot-plan
+wording adjusted: DevNet becomes "validator application submitted" rather than
+a promised in-window deploy. Claiming a DevNet deployment we do not have would
+be exactly the fabrication this product exists to refuse.
+
 ---
 
 ## Open items
