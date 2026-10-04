@@ -9,7 +9,10 @@ by the platform rather than by this server.
 
 Run the stack first (./demo/run_stack.sh). Then:  python3 ui/server.py
 """
-import json, base64, http.server, socketserver, urllib.request, urllib.error, os
+import json, base64, http.server, socketserver, urllib.request, urllib.error, os, sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import ai as ai_layer
 
 API = os.environ.get("PROVENANCE_API", "http://127.0.0.1:7575")
 PORT = int(os.environ.get("PROVENANCE_UI_PORT", "8090"))
@@ -128,21 +131,34 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                  ["Stranger::provenance-ui"])
                 stranger = len(res.get("result") or [])
                 self._send(200, {"parties": {k: v[:24] + "…" for k, v in ids.items()},
-                                 "views": views, "strangerVisibleHolds": stranger})
+                                 "views": views, "strangerVisibleHolds": stranger,
+                                 "aiEnabled": ai_layer.enabled()})
             except Exception as e:
                 self._send(500, {"error": str(e)})
         else:
             self._send(404, {"error": "not found"})
 
     def do_POST(self):
-        if self.path != "/api/act":
-            return self._send(404, {"error": "not found"})
         n = int(self.headers.get("Content-Length", 0))
-        body = json.loads(self.rfile.read(n))
-        try:
-            self._send(200, act(body, body["role"]))
-        except Exception as e:
-            self._send(500, {"error": str(e)})
+        body = json.loads(self.rfile.read(n)) if n else {}
+        if self.path == "/api/act":
+            try:
+                self._send(200, act(body, body["role"]))
+            except Exception as e:
+                self._send(500, {"error": str(e)})
+        elif self.path == "/api/ask":
+            # AI follow-up: answers from contract state ONLY, screened so a
+            # fabricated cause is discarded. The template+payload come from the
+            # client's current view of the ledger — the AI never invents facts.
+            try:
+                tmpl = body["template"]; payload = body["payload"]; q = body["question"]
+                self._send(200, ai_layer.ask(tmpl, payload, q))
+            except KeyError as e:
+                self._send(400, {"error": f"missing field {e}"})
+            except Exception as e:
+                self._send(500, {"error": str(e)})
+        else:
+            self._send(404, {"error": "not found"})
 
 class Server(socketserver.ThreadingTCPServer):
     allow_reuse_address = True

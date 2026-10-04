@@ -50,6 +50,10 @@
   .log-line .ok { color: var(--teal); } .log-line .no { color: var(--red); } .log-line .who { color: #8fb8e8; }
   .stranger { margin-top: 14px; font-size: 13px; color: var(--dim); }
   .stranger b { color: var(--ink); }
+  .askbox { margin-top: 8px; }
+  .ask-btn { font-size: 11.5px; padding: 5px 9px; border-radius: 6px; width: 100%; }
+  .ask-out { font-family: system-ui; font-size: 12.5px; margin-top: 6px; line-height: 1.5; }
+  .ask-out .no { color: var(--red); }
   input[type=text] { background: #08141a; border: 1px solid var(--line); color: var(--ink); border-radius: 6px; padding: 7px 10px; font: 13px var(--mono); width: 100%; margin-top: 6px; }
 </style>
 </head>
@@ -59,6 +63,9 @@
   The same Canton ledger, queried live as each role. <b>Disclosure is a contract
   property, not a permissions server.</b> Try the red button: it asks the ledger
   to release a hold with an invented cause — the platform itself refuses.
+  Ask any card a question: the AI answers from contract state only, and any
+  answer that invents a cause is <b>discarded</b>, not shown.
+  <span id="ai-flag" style="color:var(--dim)"></span>
 </p>
 
 <div class="toolbar">
@@ -97,6 +104,7 @@
 <script>
 const $ = s => document.querySelector(s);
 let STATE = null;
+const REG = {};   // cid -> {template, payload} for the Ask buttons
 
 function log(who, action, ok, detail) {
   const d = document.createElement('div');
@@ -118,13 +126,45 @@ function esc(s){ return String(s).replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt
 function renderView(role, list) {
   const el = $('#v-' + role.toLowerCase());
   if (!list.length) { el.innerHTML = '<div class="empty">This role sees nothing on the ledger.</div>'; return; }
-  el.innerHTML = list.map(c => `
+  el.innerHTML = list.map(c => {
+    REG[c.contractId] = { template: c.template, payload: c.payload };
+    const key = c.contractId.slice(0, 24);
+    return `
     <div class="card ${c.template.toLowerCase().replace('payment','')}">
       <div class="t">${c.template} · ${esc(c.payload.reference || '')}</div>
       <div class="amt">${esc(c.payload.amount)} ${esc(c.payload.currency)}</div>
-      <div class="kv">cid ${c.contractId.slice(0,18)}…</div>
+      <div class="kv">cid ${key}…</div>
       ${causeLine(c)}
-    </div>`).join('');
+      <div class="askbox">
+        <button class="ask-btn" data-cid="${c.contractId}">? Ask about this hold</button>
+        <div class="ask-out" id="out-${key}"></div>
+      </div>
+    </div>`;
+  }).join('');
+  el.querySelectorAll('.ask-btn').forEach(b => b.onclick = () => onAsk(b));
+}
+
+async function onAsk(btn) {
+  const cid = btn.dataset.cid;
+  const c = REG[cid];
+  const key = cid.slice(0, 24);
+  const out = document.getElementById('out-' + key);
+  const q = prompt('Ask about this contract (answered from ledger state only):',
+                   'Why is this payment held?');
+  if (q === null) return;
+  out.innerHTML = '<span style="color:var(--dim)">querying…</span>';
+  const r = await fetch('/api/ask', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ template: c.template, payload: c.payload, question: q })});
+  const res = await r.json();
+  if (res.error) { out.innerHTML = `<span class="no">${esc(res.error)}</span>`; return; }
+  const badge = res.screened_out
+    ? '<span class="no">⚠ model asserted an unestablished cause — discarded; showing deterministic answer</span>'
+    : (res.source.startsWith('ai')
+        ? '<span style="color:#8fb8e8">AI answer (screened, grounded in contract state)</span>'
+        : '<span style="color:var(--amber,#e8b34b)">deterministic answer (no AI key set — by design)</span>');
+  out.innerHTML = `${badge}<div style="margin-top:4px">${esc(res.answer)}</div>`;
+  log('AI', `follow-up on ${c.template}`, !res.screened_out,
+      res.screened_out ? 'cause-invention screened out' : 'source=' + res.source);
 }
 
 async function refresh(quiet) {
@@ -135,6 +175,8 @@ async function refresh(quiet) {
     STATE = s;
     for (const role of ['Issuer','Holder','Auditor']) renderView(role, s.views[role]);
     $('#stranger-count').textContent = s.strangerVisibleHolds + ' contracts (sees none of it)';
+    $('#ai-flag').textContent = s.aiEnabled
+      ? '· AI: enabled (Gemini, screened)' : '· AI: no key set → deterministic only (by design)';
     $('#status').textContent = 'live · ' + new Date().toLocaleTimeString();
   } catch (e) {
     $('#status').textContent = 'error: ' + e.message;

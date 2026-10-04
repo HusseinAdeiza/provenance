@@ -94,6 +94,25 @@ devpost.com/software/holdwatch-paypal-payout-holds-explained. Provenance is
 not a port of its code; it is the same honesty rule moved from application
 policy into ledger law.
 
+## The AI follow-up layer (ai.py)
+
+A language model (Gemini when `GEMINI_API_KEY` is set) answers questions about
+a contract **strictly from its ledger state** — and is not trusted to obey:
+
+- every generated answer is re-screened before display; if it asserts a cause
+  for a cause-absent contract (`HeldPayment`/`DisputedHold`), the answer is
+  **discarded** and a deterministic fallback shown instead, with the UI
+  labelling exactly what happened
+- two screening tiers: strong cause terms ("fraud", "flagged for compliance")
+  flag unconditionally — even smuggled behind an honest-sounding denial
+  prefix — while weak connectives ("because") flag only when the text is not
+  itself a denial of a cause
+- no key set → the layer reports itself disabled and everything renders from
+  contract state alone. The product does not die without an API key.
+
+`python3 ai.py` runs the screening self-test (13 checks) with no key and no
+network: the screen's job is the product claim, so it is tested like one.
+
 ## Known limitations
 
 - Local Canton sandbox; DevNet deployment is the next milestone (in-window).
