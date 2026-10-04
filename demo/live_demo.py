@@ -106,14 +106,21 @@ def main():
     # 1. THE demo: fabricating a cause is rejected by the ledger
     st, r = call("POST", "/v1/exercise",
                  {"templateId": tid, "contractId": cid, "choice": "Release",
-                  "argument": {"reason": ""}}, [ids["Issuer"]])
+                  "argument": {"reason": ""}}, [ids["Issuer"], ids["Holder"]])
     check("release with empty (fabricated) reason rejected", st == 400, f"HTTP {st}")
+
+    # 1b. REGRESSION: a VALID cause submitted by the issuer ALONE must also be
+    # rejected — establishing a cause requires both parties, not just a reason.
+    st, r = call("POST", "/v1/exercise",
+                 {"templateId": tid, "contractId": cid, "choice": "Release",
+                  "argument": {"reason": "a real cause, one signature"}}, [ids["Issuer"]])
+    check("issuer-alone release rejected even with a valid reason", st == 400, f"HTTP {st}")
 
     # 2. honest release succeeds
     st, r = call("POST", "/v1/exercise",
                  {"templateId": tid, "contractId": cid, "choice": "Release",
-                  "argument": {"reason": "Address mismatch confirmed by both parties"}},
-                 [ids["Issuer"]])
+                 "argument": {"reason": "Address mismatch confirmed by both parties"}},
+                 [ids["Issuer"], ids["Holder"]])
     check("release with established reason succeeds", st == 200, f"HTTP {st}")
 
     # 3. privacy: non-party sees nothing

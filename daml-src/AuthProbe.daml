@@ -1,0 +1,35 @@
+module AuthProbe where
+
+import Daml.Script
+import Provenance
+
+-- | Does Release ACTUALLY require the holder's authorisation, or can the issuer
+-- release alone? The JSON API returned 200 for actAs=[Issuer], which would make
+-- the "both parties sign" claim FALSE. daml script enforces authorisation
+-- strictly, so this is the authoritative test.
+--
+-- Expected: issuer-only FAILS (submitMustFail would itself fail if it passed);
+-- both-signed SUCCEEDS.
+run : Script ()
+run = script do
+  issuer  <- allocateParty "Iss"
+  holder  <- allocateParty "Hold"
+  auditor <- allocateParty "Aud"
+  now <- getTime
+  held <- submitMulti [issuer, holder] [auditor] do
+    createCmd HeldPayment with
+      issuer; holder; auditor
+      amount = 55.0; currency = "USD"
+      heldAt = now; reference = "AUTH"
+
+  -- Attempt 1: issuer ALONE releases with a cause. If authorisation is real,
+  -- this must fail — and submitMustFail asserts exactly that (the script itself
+  -- fails if the release were to succeed).
+  submitMustFail issuer do
+    exerciseCmd held (Release with reason = "issuer-only cause")
+  debug "RESULT issuer_only_release REJECTED"
+
+  -- Attempt 2: BOTH parties release — must succeed.
+  _rel <- submitMulti [issuer, holder] [auditor] do
+    exerciseCmd held (Release with reason = "both-signed cause")
+  debug "RESULT both_signed_release ACCEPTED"

@@ -55,28 +55,32 @@ No tokens, no gas, no external accounts — everything runs locally.
 |---|---|---|
 | 1 | Two-party create (`actAs: [issuer, holder]`) | **200** — hold exists |
 | 2 | Create with only the issuer's signature | **400 rejected** — holder's authorisation is missing |
-| 3 | `Release` with an empty (fabricated) reason | **400 rejected** — the honesty invariant |
-| 4 | `Release` with an established reason | **200** — cause now part of the record |
-| 5 | Stranger queries active contracts | **0 results** — disclosure is a contract property |
-| 6 | Auditor queries | **sees the released contract and its cause** |
-| 7 | Auditor tries to exercise a choice | **rejected** — observers cannot act |
+| 3 | `Release` with an empty (fabricated) reason, both parties acting | **400 rejected** — the honesty invariant |
+| 4 | `Release` with a VALID reason but the **issuer acting alone** | **400 rejected** — a cause needs both parties, not just a reason |
+| 5 | `Release` with an established reason, both parties acting | **200** — cause now part of the record |
+| 6 | Stranger queries active contracts | **0 results** — disclosure is a contract property |
+| 7 | Auditor queries | **sees the released contract and its cause** |
+| 8 | Auditor tries to exercise a choice | **rejected** — observers cannot act |
 
 Latest run (local Canton sandbox, SDK 2.10.6):
 
 ```
 PASS  two-party create (actAs both signatories)  HTTP 200
-PASS  hold carries amount+currency from create   PAY-4200 4200.0 USD
-PASS  create with only issuer signature rejected HTTP 400
-PASS  release with empty (fabricated) reason rejected HTTP 400
+PASS  hold carries amount+currency from create  PAY-4200 4200.0 USD
+PASS  create with only issuer signature rejected  HTTP 400
+PASS  release with empty (fabricated) reason rejected  HTTP 400
+PASS  issuer-alone release rejected even with a valid reason  HTTP 400
 PASS  release with established reason succeeds HTTP 200
-PASS  stranger sees zero contracts             HTTP 200, n=0
-PASS  auditor sees released contract + cause   n=1
+PASS  stranger sees zero contracts              HTTP 200, n=0
+PASS  auditor sees released contract + cause  n=1
 PASS  auditor cannot exercise (non-controller) HTTP 404
-ALL 8 CHECKS PASSED
+ALL 9 CHECKS PASSED
 ```
 
-`daml test`: 3/3 green — including `test_hold_cannot_carry_a_reason` (fabrication
-attempt fails at the assertion) and `test_auditor_sees_without_signing`.
+`daml test`: all green — including `test_hold_cannot_carry_a_reason` (fabrication
+attempt fails at the assertion), `test_issuer_cannot_release_alone` (regression:
+a valid cause with one signature is still rejected) and
+`test_auditor_sees_without_signing`.
 
 ## Disclosure (existing code, per hackathon FAQ)
 
@@ -118,9 +122,14 @@ network: the screen's job is the product claim, so it is tested like one.
 - Local Canton sandbox; DevNet deployment is the next milestone (in-window).
 - The JSON API uses unsigned dev tokens; DevNet requires proper party
   provisioning through its onboarding flow.
-- `Release` is controller-`issuer` with dual authorisation enforced by the
-  created contract's signatories. A multi-controller choice variant exists but
-  cannot use `getTime`/`create` (Commands vs Update) in SDK 2.10.6 — recorded
-  as a finding, not papered over.
+- `Release`/`Return`/`ResolveDispute` are multi-controller (`controller issuer,
+  holder`) — both parties must act for a cause to enter the record. This was
+  NOT the original design: the first version used a single controller and
+  claimed the created contract's signatories enforced dual authorisation. An
+  authoritative `daml script` test proved that claim FALSE (the issuer could
+  release alone — consuming the jointly-signed hold implicitly authorises the
+  counterparty for the archive). Fixed the same evening; the regression test
+  `test_issuer_cannot_release_alone` pins it, and demo check 4 exercises it
+  live. Recorded here because the honest history is part of the evidence.
 
 MIT licensed. Not affiliated with Digital Asset or the Canton Network.

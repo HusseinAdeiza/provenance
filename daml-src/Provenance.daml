@@ -22,8 +22,6 @@ import DA.Either (isLeft)
 -- JSON-API flow, the observer audit path and everything downstream are
 -- in-window work (Oct 4–9, 2026).
 
-import Daml.Script
-
 -- ============================================================================
 -- The payment lifecycle
 -- ============================================================================
@@ -49,17 +47,22 @@ template HeldPayment
 
     ensure amount > 0.0
 
-    -- Release: the reason is supplied at this point only. The choice has a
-    -- single controller (multi-controller choices run in Commands, where
-    -- getTime/createCmd are unavailable), but the DUAL AUTHORISATION is
-    -- enforced by the ledger anyway: ReleasedPayment carries both parties as
-    -- signatories, so the create fails unless BOTH act in the transaction.
-    -- That is stronger enforcement than a controller list — it is the
-    -- contract itself refusing to exist without both signatures.
+    -- Release: the reason is supplied at this point only, and ONLY when both
+    -- the issuer and the holder act together. This choice is multi-controller:
+    -- every controller must appear in the transaction's actAs set, and the
+    -- implicit authorisation from consuming a contract does NOT satisfy a
+    -- controller requirement. So an issuer acting alone cannot release.
+    --
+    -- This was verified, not assumed: an earlier single-controller version let
+    -- the issuer release alone (daml script reported "Expected submit to fail
+    -- but it succeeded"), which would have made the "both parties establish a
+    -- cause" claim false. A multi-controller choice body still runs in Update,
+    -- so getTime and create are available — the earlier belief that they were
+    -- not came from using createCmd (Commands) instead of create (Update).
     choice Release : ContractId ReleasedPayment
       with
         reason : Text
-      controller issuer
+      controller issuer, holder
       do
         assertMsg "reason must not be empty at release" (reason /= "")
         now <- getTime
@@ -69,11 +72,12 @@ template HeldPayment
           heldAt = this.heldAt
           resolvedAt = now
 
-    -- Return: funds go back; the cause, once established, is recorded.
+    -- Return: funds go back; the cause, once established, is recorded. Both
+    -- parties must act (multi-controller), same reasoning as Release.
     choice Return : ContractId ReturnedPayment
       with
         reason : Text
-      controller issuer
+      controller issuer, holder
       do
         assertMsg "reason must not be empty at return" (reason /= "")
         now <- getTime
@@ -83,8 +87,10 @@ template HeldPayment
           heldAt = this.heldAt
           resolvedAt = now
 
-    -- Dispute: the holder contests the hold. Does not fabricate a cause —
-    -- it records the contest and keeps reason absent.
+    -- Dispute: the holder contests the hold UNILATERALLY (single controller is
+    -- correct here — a payee must be able to contest without the issuer's
+    -- agreement). It fabricates nothing: no reason field, only the holder's
+    -- own words, recorded verbatim.
     choice Dispute : ContractId DisputedHold
       with
         statement : Text
@@ -147,12 +153,13 @@ template DisputedHold
     -- The dispute carries NO reason field. The contested hold is still a hold
     -- with an unestablished cause; the ledger will not let a dispute invent one.
 
-    -- Single controller; dual authorisation enforced by the signatories of
-    -- the ReleasedPayment this creates (see Release).
+    -- Resolution establishes a cause — so, like Release, BOTH parties must act
+    -- (multi-controller). The holder's dispute was unilateral; its resolution
+    -- is not.
     choice ResolveDispute : ContractId ReleasedPayment
       with
         reason : Text
-      controller holder
+      controller issuer, holder
       do
         assertMsg "reason must not be empty" (reason /= "")
         now <- getTime
@@ -218,6 +225,24 @@ test_hold_cannot_carry_a_reason = script do
   case mr of
     None -> abort "released contract not visible to holder"
     Some r -> assertMsg "reason recorded" (r.reason /= "")
+
+-- | REGRESSION for the false-claim bug (2026-10-04): a single-controller
+-- Release let the ISSUER establish a cause ALONE, contradicting the central
+-- claim that "a cause enters only when both parties sign". This test pins the
+-- corrected behaviour: an issuer acting alone with a perfectly VALID reason
+-- must STILL fail, because Release is now multi-controller and the holder has
+-- not acted. If this test ever passes as a success (submitMustFail fails), the
+-- dual-authorisation claim is false again.
+test_issuer_cannot_release_alone = script do
+  (issuer, holder, auditor) <- setup
+  held <- mkHeld issuer holder auditor 500.0 "PAY-SOLO-ATTEMPT"
+  -- valid reason, wrong authority: issuer alone must be rejected
+  submitMustFail issuer do
+    exerciseCmd held (Release with reason = "a real cause, but only one signature")
+  -- the same release WITH the holder succeeds
+  _rel <- submitMulti [issuer, holder] [auditor] do
+    exerciseCmd held (Release with reason = "a real cause, both signatures")
+  pure ()
 
 -- | Observer visibility: the auditor sees the stream but cannot act on it.
 test_auditor_sees_without_signing = script do
