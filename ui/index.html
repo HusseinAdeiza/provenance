@@ -78,7 +78,7 @@
 <div class="panes">
   <div class="pane issuer"><h2>Issuer</h2><div class="role-note">signatory · can release / return with an established cause</div><div id="v-issuer"></div>
     <div class="actions">
-      <button id="btn-release-honest">✓ Release with established cause…</button>
+      <button id="btn-release-honest">✓ Release with established cause (both parties)…</button>
       <button id="btn-dispute-note" style="display:none"></button>
     </div>
   </div>
@@ -214,7 +214,7 @@ $('#btn-fabricate').onclick = () => {
 $('#btn-release-honest').onclick = () => {
   const cid = firstHeld();
   if (!cid) { log('—', 'release', false, 'no held payment on screen'); return; }
-  const reason = prompt('Established cause (both parties confirm):', 'Address mismatch verified by issuer and holder');
+  const reason = prompt('Established cause (issuer + holder must both sign):', 'Address mismatch verified by issuer and holder');
   if (reason === null) return;
   act({ role:'Issuer', template:'HeldPayment', contractId:cid, choice:'Release', argument:{reason} },
       'Issuer', 'RELEASE with established cause “' + reason.slice(0,50) + '”');

@@ -80,9 +80,14 @@ def act(body, role):
     """Perform an action AS a role. Rejections come back verbatim from the ledger."""
     ids = parties()
     act_as = [ids[role]]
-    # two-party create needs both signatories in one request
-    if body.get("action") == "create":
-        act_as = [ids["Issuer"], ids["Holder"]]
+    # Choices that ESTABLISH A CAUSE are multi-controller (issuer AND holder):
+    # the ledger requires both in actAs. Create is likewise two-party. Dispute
+    # stays single-controller (holder alone) — a payee contests unilaterally —
+    # and the auditor "try to act" button must stay auditor-only so it fails.
+    DUAL_CHOICES = {"Release", "Return", "ResolveDispute"}
+    if body.get("action") == "create" or body.get("choice") in DUAL_CHOICES:
+        if role in ("Issuer", "Holder"):
+            act_as = [ids["Issuer"], ids["Holder"]]
     path = "/v1/create" if body.get("action") == "create" else "/v1/exercise"
     pkg = package()
     payload: dict = {"templateId": f"{pkg}:Provenance:{body['template']}"}
