@@ -9,7 +9,10 @@ export PATH="$HOME/.daml/bin:$PATH"
 echo "── daml test ──────────────────────────────────"
 TEST_OUT=$(daml test 2>&1)
 echo "$TEST_OUT" | grep -E ": ok|failed"
-TESTS_OK=$(echo "$TEST_OUT" | grep -cE ": ok")
+# Count only real test_* cases. `setup`, and the `:run` bootstrap/probe scripts
+# also report ": ok" but are not tests — counting them inflated the figure to 8
+# and contradicted the "5 contract tests" stated elsewhere. Named tests only.
+TESTS_OK=$(echo "$TEST_OUT" | grep -E "test_[a-z_]+: ok" | wc -l | tr -d ' ')
 TESTS_FAIL=$(echo "$TEST_OUT" | grep -cE ": failed|FAIL")
 
 echo "── AI screen self-test ────────────────────────"

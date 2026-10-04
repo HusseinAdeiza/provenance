@@ -90,9 +90,25 @@ documented in the skill after they cost an hour.
 
 ---
 
+**D13 — Product site: the build gate reads proof.json, not typed numbers.**
+Forked the HoldWatch scaffold (tokens + layout survived review there). The
+gate refuses to build unless the live stack answers, stranger visibility is
+exactly 0, and proof.json is <24h old with zero failures — so a figure on the
+page and a check in the eval suite are the same artifact. First gate run
+caught a real inconsistency: damlTestsOk said 8 because `: ok` counted setup +
+bootstrap + probe scripts as tests; every other surface says 5. Fixed at the
+source (proof.sh counts test_* only). Verified: 127 text elements, 0 contrast
+failures; 390/768/1440 clean; vision review found no slop tells.
+Repo: github.com/HusseinAdeiza/provenance-site (dist/ committed — Render
+builder has no ledger, so the gate runs locally at build time; documented in
+render.yaml).
+
+---
+
 ## Open items
 
 - [ ] DevNet deployment (pilot step 1)
+- [ ] Site public deploy (Render blueprint — needs user's Render dashboard, or GitHub Pages)
 - [ ] 3 user interviews (validation evidence)
-- [ ] Demo video (script + VO done; recording in progress)
-- [ ] Product site (tryveir/ourspaces pattern — live numbers first line)
+- [x] ~~Demo video~~ done: video/out/Provenance_DEMO.mp4, 99.6s, QC'd
+- [ ] YouTube upload of the demo video + title/description pack
