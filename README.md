@@ -42,8 +42,34 @@ application code that can be bypassed. On Canton it is a **contract invariant**:
 daml-src/Provenance.daml    the lifecycle: HeldPayment → Release/Return/Dispute
 daml-src/AuthProbe.daml     authoritative authorisation probe (ide-ledger)
 daml-src/ListParties.daml   idempotent bootstrap: parties + two-party create
-demo/live_demo.py           the judge-facing demo (8 checks over the JSON API)
+demo/live_demo.py           the judge-facing demo (11 checks over the JSON API)
 demo/run_stack.sh           build → test → sandbox → bootstrap → json-api → demo
+ui/server.py                three-pane roles UI server (no filtering — the ledger decides)
+ui/index.html               issuer / holder / auditor panes + ledger log
+ai.py                       screened AI follow-up layer (13-check self-test)
+mcp_server.py               MCP server, raw JSON-RPC stdio, no SDK (7 tools)
+eval_mcp.py                 drives the MCP server as a real client (7 checks)
+run_eval.sh                 ONE command: every proof, in order
+BUILD_LOG.md                every decision, dated — including the false-claim bug
+```
+
+## MCP: the same guardrails apply to agents
+
+`mcp_server.py` exposes the lifecycle as standard agent tools (MCP 2024-11-05,
+newline-delimited JSON-RPC over stdio, written from scratch — no SDK). It uses
+the same JSON-API client as the UI: an agent drives the identical code path a
+human does.
+
+The claim this makes possible: **the ledger's guardrails apply to an AI agent
+exactly as they apply to a human.** `eval_mcp.py` proves it by driving the
+server as a real MCP client: the agent creates a hold, then
+`provenance_fabricate_cause` — a tool that deliberately attempts a release
+with an invented cause — returns the ledger's rejection verbatim. Agents
+SHOULD fail at it. The failure is the product.
+
+```bash
+python3 eval_mcp.py    # 7/7: handshake, tools/list, create, fabrication
+                       # rejected, real cause accepted, audit trail, query
 ```
 
 ## Run it

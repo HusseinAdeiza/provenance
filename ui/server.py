@@ -29,7 +29,7 @@ def jwt(act):
     def b64(d): return base64.urlsafe_b64encode(json.dumps(d).encode()).rstrip(b"=").decode()
     return f"{b64({'alg':'HS256','typ':'JWT'})}.{b64(p)}.sig"
 
-def ledger(method, path, body, act):
+def ledger(method: str, path: str, body, act: list) -> tuple:
     data = json.dumps(body).encode() if body is not None else None
     req = urllib.request.Request(f"{API}{path}", data=data, method=method,
         headers={"Content-Type": "application/json", "Authorization": f"Bearer {jwt(act)}"})
