@@ -39,12 +39,15 @@ const state = await page.evaluate(async () => {
     rolesLoaded: !!(st.views && st.views.Issuer && st.views.Holder && st.views.Auditor),
     strangerZero: st.strangerVisibleHolds === 0,
     hasHeld: st.views.Issuer.some(c => c.template === 'HeldPayment'),
-    hasTrail: st.views.Auditor.some(c => c.template === 'AuditEntry'),
   }
 })
 console.log('guard:', JSON.stringify(state))
+// NOTE: the audit trail is NOT required pre-take — on a fresh ledger it is
+// empty until beat B5 performs the release on camera. Requiring it made the
+// recorder refuse every clean stack. What MUST hold: correct UI build, roles
+// loaded, stranger sees zero, and at least one live hold to act on.
 if (!state.correctTitle || !state.noReasonField || !state.rolesLoaded ||
-    !state.strangerZero || !state.hasHeld || !state.hasTrail) {
+    !state.strangerZero || !state.hasHeld) {
   console.error('ABORT: live UI failed the pre-recording guard.')
   await browser.close(); process.exit(1)
 }
@@ -78,9 +81,14 @@ await fab.click()
 await sleep(3600)                       // let the rejection render — VO b4 = 13.88s
 const logEl = page.locator('#ledgerlog')
 await logEl.scrollIntoViewIfNeeded()
-const lb = await logEl.boundingBox()
+// scrollIntoViewIfNeeded leaves the log as a bottom sliver — the REJECTED line
+// is the whole video, so centre it in frame instead
+await page.evaluate(() => document.querySelector('#ledgerlog').scrollIntoView({ block: 'center' }))
+await sleep(700)
+let lb = await logEl.boundingBox()
 await page.mouse.move(lb.x + 400, lb.y + 40, { steps: 10 })   // cursor traces the log
 await sleep(4200)
+lb = await logEl.boundingBox()
 await page.mouse.move(lb.x + 700, lb.y + 62, { steps: 8 })
 await sleep(4600)
 
@@ -93,16 +101,19 @@ await page.mouse.move(rb.x + rb.width / 2, rb.y + rb.height / 2, { steps: 10 })
 await sleep(800)
 await rel.click()                        // dialog auto-accepts the reason
 await sleep(3400)
-// dwell on the newly released card with its green established cause
+// dwell on the newly released card with its green established cause, CENTRED
 const relCard = page.locator('#v-issuer .card.released').first()
-await relCard.scrollIntoViewIfNeeded()
+await relCard.evaluate(el => el.scrollIntoView({ block: 'center' }))
+await sleep(700)
 const rc = await relCard.locator('.cause').first().boundingBox()
 await page.mouse.move(rc.x + rc.width / 2, rc.y + rc.height / 2, { steps: 10 })
 await sleep(6400)
 
 // B6: auditor trail + stranger line
 const trailHead = page.locator('#v-auditor .trail-head').first()
-const tb = await trailHead.boundingBox()
+await trailHead.evaluate(el => el.scrollIntoView({ block: 'center' }))
+await sleep(600)
+let tb = await trailHead.boundingBox()
 await page.mouse.move(tb.x + 120, tb.y + 8, { steps: 12 })
 await sleep(1600)
 const rows = page.locator('#v-auditor .trail-row')
@@ -113,9 +124,11 @@ for (let i = 0; i < Math.min(n, 3); i++) {
   await sleep(900)
 }
 const stranger = page.locator('.stranger')
+await stranger.evaluate(el => el.scrollIntoView({ block: 'center' }))
+await sleep(500)
 const sb = await stranger.boundingBox()
 await page.mouse.move(sb.x + 200, sb.y + sb.height / 2, { steps: 10 })
-await sleep(4600)
+await sleep(4200)
 
 // hold final frame for the close card crossfade
 await sleep(2000)
