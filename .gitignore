@@ -1,10 +1,16 @@
 .daml/
-node_modules/
+node_modules
 dist/
 __pycache__/
 *.log
-video/
-!video/SCRIPT.md
-!video/*.sh
-!video/*.mjs
-!video/*.py
+
+# video/ — keep the reproducible SOURCES (scripts, narration, docs), ignore the
+# large regenerable OUTPUT. Do NOT blanket-ignore `video/`: git cannot
+# re-include a file whose parent dir is excluded, so the sources would silently
+# stay untracked. Ignore the specific artifacts instead.
+video/out/
+video/beats/
+video/cards/
+video/clips/
+video/node_modules
+*.mp4
