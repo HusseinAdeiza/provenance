@@ -55,16 +55,20 @@ def create_hold(ids):
     return st, res
 
 def find_package(ids):
-    """Find the package id that actually carries our templates. A 200 with an
-    empty result means 'no such contract visible', NOT 'right package' — the
-    first version of this accepted the first 200 and picked a stdlib package,
-    so create then failed with 'Cannot resolve template ID'."""
+    """Find the package id that carries our templates. /v1/query returns
+    200-empty for EVERY package (even ones that don't define the template), so
+    the only reliable signal is a non-empty result. Query all five templates —
+    not just HeldPayment — because a run that released every hold leaves no
+    HeldPayment to key on, while ReleasedPayment/AuditEntry persist. The first
+    package that returns any of ours is the real one."""
     st, res = call("GET", "/v1/packages", None, [ids["Issuer"]])
+    tmpls = ["HeldPayment", "ReleasedPayment", "ReturnedPayment", "DisputedHold", "AuditEntry"]
     for pkg in res.get("result", []):
-        st2, r2 = call("POST", "/v1/query", {"templateIds": [f"{pkg}:Provenance:HeldPayment"]}, [ids["Issuer"]])
-        if st2 == 200 and (r2.get("result") or []):
-            return pkg
-    sys.exit("no HeldPayment visible on the ledger — bootstrap script not run?")
+        for t in tmpls:
+            st2, r2 = call("POST", "/v1/query", {"templateIds": [f"{pkg}:Provenance:{t}"]}, [ids["Issuer"]])
+            if st2 == 200 and (r2.get("result") or []):
+                return pkg
+    sys.exit("no Provenance contract visible — run ListParties:run to bootstrap first")
 
 results = []
 def check(name, ok, detail=""):

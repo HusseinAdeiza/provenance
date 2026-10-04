@@ -56,14 +56,17 @@ def package():
     if _state["pkg"]: return _state["pkg"]
     ids = parties()
     st, res = ledger("GET", "/v1/packages", None, [ids["Issuer"]])
+    tmpls = ("HeldPayment", "ReleasedPayment", "ReturnedPayment", "DisputedHold", "AuditEntry")
     for pkg in res.get("result", []):
-        st2, r2 = ledger("POST", "/v1/query",
-                         {"templateIds": [f"{pkg}:Provenance:HeldPayment"]}, [ids["Issuer"]])
-        # bootstrap hold exists from ListParties:run — non-empty result = right package
-        if st2 == 200 and (r2.get("result") or []):
-            _state["pkg"] = pkg
-            return pkg
-    raise RuntimeError("Provenance package not found on the ledger")
+        # /v1/query returns 200-empty for every package, so a non-empty result
+        # for ANY of our templates is the only reliable signal this is ours.
+        for t in tmpls:
+            st2, r2 = ledger("POST", "/v1/query",
+                             {"templateIds": [f"{pkg}:Provenance:{t}"]}, [ids["Issuer"]])
+            if st2 == 200 and (r2.get("result") or []):
+                _state["pkg"] = pkg
+                return pkg
+    raise RuntimeError("no Provenance contract visible — bootstrap not run?")
 
 def query_role(role):
     """Everything this role can see — the ledger decides, not us."""

@@ -1,0 +1,7 @@
+{
+  "generatedAt": "2026-10-04T15:42:02Z",
+  "damlTests": {"ok": 8, "failed": 0},
+  "aiScreen":  {"pass": 13, "fail": 0},
+  "mcpEval":   {"pass": 7, "fail": 0},
+  "liveDemo":  {"pass": 11, "fail": 0, "ran": true}
+}
