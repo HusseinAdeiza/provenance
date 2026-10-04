@@ -3,6 +3,7 @@ module Provenance where
 import Daml.Script
 import DA.Optional (isSome)
 import DA.Either (isLeft)
+import DA.List (head)
 
 -- | Provenance — payment holds where the honesty rule is enforced by the ledger.
 --
@@ -66,6 +67,13 @@ template HeldPayment
       do
         assertMsg "reason must not be empty at release" (reason /= "")
         now <- getTime
+        -- every transition that establishes a cause also writes the audit
+        -- trail: the auditor sees the record without ever being a signatory
+        _audit <- create AuditEntry with
+          auditor; issuer; holder; reference
+          event = "RELEASED"
+          detail = Some reason
+          at = now
         create ReleasedPayment with
           issuer; holder; auditor; amount; currency; reference
           reason
@@ -81,6 +89,11 @@ template HeldPayment
       do
         assertMsg "reason must not be empty at return" (reason /= "")
         now <- getTime
+        _audit <- create AuditEntry with
+          auditor; issuer; holder; reference
+          event = "RETURNED"
+          detail = Some reason
+          at = now
         create ReturnedPayment with
           issuer; holder; auditor; amount; currency; reference
           reason
@@ -98,6 +111,11 @@ template HeldPayment
       do
         assertMsg "dispute statement required" (statement /= "")
         now <- getTime
+        _audit <- create AuditEntry with
+          auditor; issuer; holder; reference
+          event = "DISPUTED"
+          detail = None          -- a dispute establishes NO cause, ever
+          at = now
         create DisputedHold with
           issuer; holder; auditor; amount; currency; reference
           heldAt = this.heldAt
@@ -163,6 +181,11 @@ template DisputedHold
       do
         assertMsg "reason must not be empty" (reason /= "")
         now <- getTime
+        _audit <- create AuditEntry with
+          auditor; issuer; holder; reference
+          event = "RESOLVED"
+          detail = Some reason
+          at = now
         create ReleasedPayment with
           issuer; holder; auditor; amount; currency; reference
           reason
@@ -273,3 +296,32 @@ test_dispute_does_not_invent_cause = script do
   case mr2 of
     None -> abort "resolved contract not visible to holder"
     Some r2 -> assertMsg "resolution carries the established cause" (r2.reason /= "")
+
+-- | The audit trail: every cause-establishing transition writes an AuditEntry
+-- the OBSERVER can read, and a dispute writes one with NO cause. This is what
+-- makes the auditor pane a real trail rather than an inferred one, and it is
+-- the Track 1 "audit/report" workflow step.
+test_audit_trail_is_written = script do
+  (issuer, holder, auditor) <- setup
+  held <- mkHeld issuer holder auditor 300.0 "PAY-AUDIT"
+
+  -- dispute writes an entry with no cause
+  disputed <- submit holder (exerciseCmd held (Dispute with statement = "no notice given"))
+  entriesAfterDispute <- query @AuditEntry auditor
+  assertMsg "auditor sees the dispute entry" (length entriesAfterDispute == 1)
+  let (_, e1) = head entriesAfterDispute
+  assertMsg "dispute entry event is DISPUTED" (e1.event == "DISPUTED")
+  assertMsg "dispute entry has NO cause" (e1.detail == None)
+
+  -- resolution writes an entry WITH the established cause
+  _rel <- submitMulti [issuer, holder] [auditor] do
+    exerciseCmd disputed (ResolveDispute with reason = "Delivery confirmed by issuer")
+  entriesAfterResolve <- query @AuditEntry auditor
+  assertMsg "auditor sees two entries now" (length entriesAfterResolve == 2)
+  let resolvedEntry = head [ e | (_, e) <- entriesAfterResolve, e.event == "RESOLVED" ]
+  assertMsg "resolve entry carries the cause" (resolvedEntry.detail == Some "Delivery confirmed by issuer")
+
+  -- and the stranger still sees no part of the trail
+  stranger <- allocateParty "Stranger2"
+  blind <- query @AuditEntry stranger
+  assertMsg "stranger sees no audit entries" (length blind == 0)

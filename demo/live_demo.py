@@ -143,6 +143,20 @@ def main():
                   "choice": "Return", "argument": {"reason": "x"}}, [ids["Auditor"]])
     check("auditor cannot exercise (non-controller)", st >= 400, f"HTTP {st}")
 
+    # 6. the audit trail: the release in check 2 wrote an AuditEntry that the
+    # OBSERVER can read — Track 1's create -> resolve -> AUDIT step, on-ledger
+    st, r = call("POST", "/v1/query",
+                 {"templateIds": [f"{pkg}:Provenance:AuditEntry"]}, [ids["Auditor"]])
+    entries = r.get("result") or []
+    released_entries = [e for e in entries if e["payload"].get("event") == "RELEASED"]
+    check("auditor reads the audit trail (RELEASED entries)",
+          st == 200 and len(released_entries) >= 1,
+          f"{len(entries)} entries, {len(released_entries)} RELEASED")
+    st, r = call("POST", "/v1/query",
+                 {"templateIds": [f"{pkg}:Provenance:AuditEntry"]}, ["Stranger"])
+    check("stranger sees no audit trail",
+          st == 200 and len(r.get("result") or []) == 0, f"HTTP {st}")
+
     print()
     if all(results):
         print(f"ALL {len(results)} CHECKS PASSED")

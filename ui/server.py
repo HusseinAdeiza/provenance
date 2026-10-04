@@ -69,7 +69,7 @@ def query_role(role):
     """Everything this role can see — the ledger decides, not us."""
     ids = parties(); pkg = package()
     out = []
-    for tmpl in ("HeldPayment", "ReleasedPayment", "ReturnedPayment", "DisputedHold"):
+    for tmpl in ("HeldPayment", "ReleasedPayment", "ReturnedPayment", "DisputedHold", "AuditEntry"):
         st, res = ledger("POST", "/v1/query",
                          {"templateIds": [f"{pkg}:Provenance:{tmpl}"]}, [ids[role]])
         for c in (res.get("result") or []):

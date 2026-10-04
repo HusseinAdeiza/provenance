@@ -30,11 +30,17 @@ application code that can be bypassed. On Canton it is a **contract invariant**:
   signs nothing, and cannot act — and a non-party sees **nothing**.
   Auditability and privacy in the same transaction, which no public ledger
   can express.
+- Every cause-establishing transition writes an `AuditEntry` on-ledger:
+  `RELEASED`/`RETURNED`/`RESOLVED` carry the established cause; `DISPUTED`
+  carries `detail = None` — a dispute NEVER establishes a cause, and the
+  trail shows that too. This is Track 1's create → status → fulfill →
+  **audit** workflow, with the audit step as a first-class contract.
 
 ## Layout
 
 ```
 daml-src/Provenance.daml    the lifecycle: HeldPayment → Release/Return/Dispute
+daml-src/AuthProbe.daml     authoritative authorisation probe (ide-ledger)
 daml-src/ListParties.daml   idempotent bootstrap: parties + two-party create
 demo/live_demo.py           the judge-facing demo (8 checks over the JSON API)
 demo/run_stack.sh           build → test → sandbox → bootstrap → json-api → demo
@@ -61,6 +67,8 @@ No tokens, no gas, no external accounts — everything runs locally.
 | 6 | Stranger queries active contracts | **0 results** — disclosure is a contract property |
 | 7 | Auditor queries | **sees the released contract and its cause** |
 | 8 | Auditor tries to exercise a choice | **rejected** — observers cannot act |
+| 9 | Auditor reads the audit trail | **RELEASED entries with established causes** — every cause-establishing transition writes an `AuditEntry` the observer can read |
+| 10 | Stranger queries the trail | **0 results** — the audit record is disclosed like everything else |
 
 Latest run (local Canton sandbox, SDK 2.10.6):
 
@@ -74,7 +82,9 @@ PASS  release with established reason succeeds HTTP 200
 PASS  stranger sees zero contracts              HTTP 200, n=0
 PASS  auditor sees released contract + cause  n=1
 PASS  auditor cannot exercise (non-controller) HTTP 404
-ALL 9 CHECKS PASSED
+PASS  auditor reads the audit trail (RELEASED entries)  2 entries, 2 RELEASED
+PASS  stranger sees no audit trail  HTTP 200
+ALL 11 CHECKS PASSED
 ```
 
 `daml test`: all green — including `test_hold_cannot_carry_a_reason` (fabrication
