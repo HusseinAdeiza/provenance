@@ -1,173 +1,185 @@
 # Provenance
 
-**Product site:** https://husseinadeiza.github.io/provenance-site/
+**When a payment is frozen, Provenance makes it impossible to invent a reason
+for the freeze — and lets an auditor check what happened without seeing private
+details.**
 
-**Payment holds where "we will not invent a cause" is enforced by the ledger —
-not promised by a server.**
+Product site: https://husseinadeiza.github.io/provenance-site/
+Built for HackCanton (Track 1: RWA & Business Workflows). Delivery window Oct 4–9, 2026.
 
-Built for HackCanton Season 4 (Track 1: RWA & Business Workflows). Delivery
-window Oct 4–9, 2026.
+---
 
-## The problem
+## What this is, in plain words
 
-When a payment rail freezes funds, it tells you *that* — never *why*. The
-payee guesses remedies (chasing a fraud review when the cause was an address
-mismatch), tools that "explain" holds invent causes their data never
-established, and auditors can only verify compliance by being shown private
-payment records in full.
+Someone's money gets held by a payment system. The system says *"frozen"* but
+not *"why."* So people guess — and a wrong guess means chasing the wrong fix
+while the money stays stuck. Some tools try to be helpful and **make up** a
+reason. A made-up reason is worse than no reason, because people act on it.
 
-## The Canton answer
+Provenance runs the same "held payment" on **Canton**, a ledger for finance. On
+Canton, the rule "don't invent a cause" isn't a promise our code makes — it's
+something the **ledger itself enforces**. Try to release a held payment with a
+fake or empty reason, and the ledger refuses the transaction. It's not our
+server saying no; it's the platform.
 
-On a public chain or behind an API, *"we will not invent a cause"* is a policy:
-application code that can be bypassed. On Canton it is a **contract invariant**:
+Three roles:
+- **Issuer** — the side that pays out.
+- **Holder** — the person whose money is held.
+- **Auditor** — watches everything to check it was handled right, but can't
+  change anything and never sees what they shouldn't.
 
-- `HeldPayment` **has no reason field at all.** There is nothing to fabricate
-  into while a payment is held.
-- A cause enters the record only through `Release`/`Return`, where the reason
-  is **required, non-empty, and asserted** — an empty cause is a failed
-  transaction (`FAILED_PRECONDITION` from the ledger itself).
-- Both parties sign the transition: `signatory issuer, holder` means the
-  resolved contract **cannot exist** without both authorisations.
-- The `auditor` is an **observer**: sees every state and established cause,
-  signs nothing, and cannot act — and a non-party sees **nothing**.
-  Auditability and privacy in the same transaction, which no public ledger
-  can express.
-- Every cause-establishing transition writes an `AuditEntry` on-ledger:
-  `RELEASED`/`RETURNED`/`RESOLVED` carry the established cause; `DISPUTED`
-  carries `detail = None` — a dispute NEVER establishes a cause, and the
-  trail shows that too. This is Track 1's create → status → fulfill →
-  **audit** workflow, with the audit step as a first-class contract.
+---
 
-## Layout
+## What the demo proves — and what it does not
 
-```
-daml-src/Provenance.daml    the lifecycle: HeldPayment → Release/Return/Dispute
-daml-src/AuthProbe.daml     authoritative authorisation probe (ide-ledger)
-daml-src/ListParties.daml   idempotent bootstrap: parties + two-party create
-demo/live_demo.py           the judge-facing demo (11 checks over the JSON API)
-demo/run_stack.sh           build → test → sandbox → bootstrap → json-api → demo
-ui/server.py                three-pane roles UI server (no filtering — the ledger decides)
-ui/index.html               issuer / holder / auditor panes + ledger log
-ai.py                       screened AI follow-up layer (13-check self-test)
-mcp_server.py               MCP server, raw JSON-RPC stdio, no SDK (7 tools)
-eval_mcp.py                 drives the MCP server as a real client (7 checks)
-run_eval.sh                 ONE command: every proof, in order
-BUILD_LOG.md                every decision, dated — including the false-claim bug
-```
+This matters, so it's up front rather than buried.
 
-## MCP: the same guardrails apply to agents
+**What it really does:** it runs a genuine Canton ledger (the local sandbox from
+the official Daml SDK) and real Daml contracts. Every rejection you see is a
+real response from that ledger — not a mocked message, not a hard-coded "error."
+You can run it yourself (`./demo/run_stack.sh`) and press the red button.
 
-`mcp_server.py` exposes the lifecycle as standard agent tools (MCP 2024-11-05,
-newline-delimited JSON-RPC over stdio, written from scratch — no SDK). It uses
-the same JSON-API client as the UI: an agent drives the identical code path a
-human does.
+**What it is not (yet):** the three-pane screen runs on **one machine**, where a
+single small server talks to the ledger three times — once wearing each role's
+identity — to show what that role is allowed to see. It is a clear demonstration
+of the *rules*, but it is **not** three separate people on three separate wallets
+and devices. A production version would have each party sign from their own
+Canton wallet. The **rule being demonstrated is identical either way** — the
+ledger requires both parties' authorisation no matter who submits — and that
+rule is what we test. We say this plainly so nobody mistakes a rules demo for a
+deployed multi-user app.
 
-The claim this makes possible: **the ledger's guardrails apply to an AI agent
-exactly as they apply to a human.** `eval_mcp.py` proves it by driving the
-server as a real MCP client: the agent creates a hold, then
-`provenance_fabricate_cause` — a tool that deliberately attempts a release
-with an invented cause — returns the ledger's rejection verbatim. Agents
-SHOULD fail at it. The failure is the product.
+Also: this runs on a **local sandbox, not a public network.** Canton's DevNet
+needs a sponsoring validator, a VPN and a 2–4 week approval, which does not fit
+this deadline. The hackathon rules explicitly accept a local deployment for
+judging. Moving the same contract to DevNet later is a configuration change, not
+a rebuild.
 
-```bash
-python3 eval_mcp.py    # 7/7: handshake, tools/list, create, fabrication
-                       # rejected, real cause accepted, audit trail, query
-```
+---
 
-## Run it
+## The core rule, and why Canton is the only place it holds
+
+On a normal website or a public blockchain, "we won't invent a cause" is just
+something the app *says* — and an app can be changed, bypassed, or lied with.
+
+On Canton it's baked into the contract:
+
+- A **held payment has no "reason" field at all.** There's nowhere to put a fake
+  reason. You can't fill in a box that doesn't exist.
+- A reason can only be added when the payment is **released** or **returned**,
+  and then it **must be real** — an empty reason makes the ledger reject the
+  transaction.
+- **Both the issuer and the holder must act together** to release. One of them
+  alone — even with a perfectly good reason — is rejected. (We found this the
+  hard way; see the honest note in BUILD_LOG D4.)
+- The **auditor** can read the whole history but can't change it, and a total
+  stranger sees **nothing.** So you can prove a hold was handled correctly
+  without exposing private payment details — something a public blockchain
+  can't do (everything there is world-readable) and a normal API can't enforce
+  (it trusts whatever the server decides to show).
+- Every step that establishes a reason also writes an **audit entry**. A
+  *dispute* writes an entry with **no reason** — because a dispute proves
+  nothing was established, and the record says exactly that.
+
+---
+
+## Run it yourself
 
 ```bash
 ./demo/run_stack.sh
 ```
 
-Requirements: Daml SDK 2.x (`curl -sSL https://get.daml.com | sh`), Python 3.
-No tokens, no gas, no external accounts — everything runs locally.
+Needs: the Daml SDK (`curl -sSL https://get.daml.com | sh`) and Python 3.
+No accounts, no tokens, no cost — it all runs on your machine.
 
-## The demo, in one table
+One command runs every check:
 
-| # | Action | Ledger response |
+```bash
+./proof.sh      # contract tests + live checks + AI screen + agent evals
+```
+
+---
+
+## What the checks show
+
+| # | What we try | What the ledger does |
 |---|---|---|
-| 1 | Two-party create (`actAs: [issuer, holder]`) | **200** — hold exists |
-| 2 | Create with only the issuer's signature | **400 rejected** — holder's authorisation is missing |
-| 3 | `Release` with an empty (fabricated) reason, both parties acting | **400 rejected** — the honesty invariant |
-| 4 | `Release` with a VALID reason but the **issuer acting alone** | **400 rejected** — a cause needs both parties, not just a reason |
-| 5 | `Release` with an established reason, both parties acting | **200** — cause now part of the record |
-| 6 | Stranger queries active contracts | **0 results** — disclosure is a contract property |
-| 7 | Auditor queries | **sees the released contract and its cause** |
-| 8 | Auditor tries to exercise a choice | **rejected** — observers cannot act |
-| 9 | Auditor reads the audit trail | **RELEASED entries with established causes** — every cause-establishing transition writes an `AuditEntry` the observer can read |
-| 10 | Stranger queries the trail | **0 results** — the audit record is disclosed like everything else |
+| 1 | Create a hold with both parties | **accepted** |
+| 2 | Create a hold with only the issuer | **rejected** — the holder must agree too |
+| 3 | Release with an empty (fake) reason | **rejected** — this is the whole point |
+| 4 | Release with a good reason, but issuer alone | **rejected** — a reason needs both parties |
+| 5 | Release with a real reason, both parties | **accepted** — reason is now on the record |
+| 6 | A stranger looks at the ledger | **sees nothing** |
+| 7 | The auditor looks | **sees the release and its reason** |
+| 8 | The auditor tries to change something | **rejected** — auditors only watch |
+| 9 | The auditor reads the audit trail | **sees every step and reason** |
+| 10 | A stranger reads the audit trail | **sees nothing** |
+| 11 | The released payment carries its reason | **verified** |
 
-Latest run (local Canton sandbox, SDK 2.10.6):
+Latest run on a local Canton sandbox (Daml SDK 2.10.6): **all 11 checks pass.**
+Contract tests: **5/5 green**, including one that specifically proves the issuer
+can't release alone.
+
+---
+
+## The AI helper (and why it can't lie either)
+
+There's an optional AI layer that answers questions about a held payment — but
+it is **not trusted to behave.** It only ever sees the facts the ledger holds,
+and every answer it writes is checked before anyone sees it. If the AI says a
+reason that the ledger never established, the answer is **thrown away** and
+replaced with the plain, factual text. The screen even shows "this was filtered."
+
+It also works with **no AI at all** — if there's no model key, every card still
+renders from the ledger facts alone. An app that dies without an API key is a
+toy; this isn't one.
+
+`python3 ai.py` runs the 13 checks on this filtering, with no key and no internet.
+
+---
+
+## An AI agent gets the same treatment
+
+`mcp_server.py` exposes the same hold workflow as standard tools an AI agent can
+call (MCP, written from scratch). The point: **the ledger's rules apply to an AI
+agent exactly as they apply to a person.** The agent-eval (`eval_mcp.py`, 7/7
+pass) drives a real agent connection and confirms that when an agent tries to
+invent a cause, the ledger rejects it just the same.
+
+---
+
+## Files
 
 ```
-PASS  two-party create (actAs both signatories)  HTTP 200
-PASS  hold carries amount+currency from create  PAY-4200 4200.0 USD
-PASS  create with only issuer signature rejected  HTTP 400
-PASS  release with empty (fabricated) reason rejected  HTTP 400
-PASS  issuer-alone release rejected even with a valid reason  HTTP 400
-PASS  release with established reason succeeds HTTP 200
-PASS  stranger sees zero contracts              HTTP 200, n=0
-PASS  auditor sees released contract + cause  n=1
-PASS  auditor cannot exercise (non-controller) HTTP 404
-PASS  auditor reads the audit trail (RELEASED entries)  2 entries, 2 RELEASED
-PASS  stranger sees no audit trail  HTTP 200
-ALL 11 CHECKS PASSED
+daml-src/Provenance.daml    the contracts: held → release/return/dispute + audit entry
+daml-src/AuthProbe.daml     the test that caught the issuer-alone bug
+daml-src/ListParties.daml   sets up the three parties and the first hold
+demo/live_demo.py           the 11 checks, run against the live ledger
+demo/run_stack.sh           one command to start everything and run the demo
+ui/server.py                the three-pane screen (does no filtering — the ledger decides)
+ui/index.html               the issuer / holder / auditor views
+ai.py                       the AI helper + the filter that stops it inventing causes
+mcp_server.py               the AI-agent interface (MCP)
+eval_mcp.py                 proves an agent can't invent a cause either
+proof.sh                    one command: every check, in order
+BUILD_LOG.md                every decision, dated — including the bug we found and fixed
 ```
 
-`daml test`: all green — including `test_hold_cannot_carry_a_reason` (fabrication
-attempt fails at the assertion), `test_issuer_cannot_release_alone` (regression:
-a valid cause with one signature is still rejected) and
-`test_auditor_sees_without_signing`.
+---
 
-## Disclosure (existing code, per hackathon FAQ)
+## Honest disclosure (per the hackathon rules)
 
-A research probe — one Daml template modelling a held payment with an
-enforced-empty reason — was built on Oct 3, 2026, while evaluating Canton, and
-lives in `/root/canton_probe/holdwatch-probe`. It never solved multi-party
-authorisation and was never deployed. **Everything in this repository is
-in-window work** (Oct 4–9, 2026): the multi-contract lifecycle, the two-party
-JSON-API create, the bootstrap, the demo harness, the UI and the AI layer.
-Git history timestamps every commit inside the delivery window.
+**A pre-window research probe.** On Oct 3, before this season's build, I wrote a
+single experimental Daml contract to see whether Canton could enforce an
+empty-reason rule. It's in `/root/canton_probe/holdwatch-probe`. It never solved
+multi-party signing and was never deployed. The hackathon FAQ allows pre-existing
+code **if disclosed**, and judges score only in-window work — so: **everything
+in this repository is in-window work** (Oct 4–9). The git history timestamps
+every commit inside the window.
 
-The product thesis (explain holds, never invent causes) comes from HoldWatch,
-our PayPal AI Hackathon entry — public at
-devpost.com/software/holdwatch-paypal-payout-holds-explained. Provenance is
-not a port of its code; it is the same honesty rule moved from application
-policy into ledger law.
-
-## The AI follow-up layer (ai.py)
-
-A language model (Gemini when `GEMINI_API_KEY` is set) answers questions about
-a contract **strictly from its ledger state** — and is not trusted to obey:
-
-- every generated answer is re-screened before display; if it asserts a cause
-  for a cause-absent contract (`HeldPayment`/`DisputedHold`), the answer is
-  **discarded** and a deterministic fallback shown instead, with the UI
-  labelling exactly what happened
-- two screening tiers: strong cause terms ("fraud", "flagged for compliance")
-  flag unconditionally — even smuggled behind an honest-sounding denial
-  prefix — while weak connectives ("because") flag only when the text is not
-  itself a denial of a cause
-- no key set → the layer reports itself disabled and everything renders from
-  contract state alone. The product does not die without an API key.
-
-`python3 ai.py` runs the screening self-test (13 checks) with no key and no
-network: the screen's job is the product claim, so it is tested like one.
-
-## Known limitations
-
-- Local Canton sandbox; DevNet deployment is the next milestone (in-window).
-- The JSON API uses unsigned dev tokens; DevNet requires proper party
-  provisioning through its onboarding flow.
-- `Release`/`Return`/`ResolveDispute` are multi-controller (`controller issuer,
-  holder`) — both parties must act for a cause to enter the record. This was
-  NOT the original design: the first version used a single controller and
-  claimed the created contract's signatories enforced dual authorisation. An
-  authoritative `daml script` test proved that claim FALSE (the issuer could
-  release alone — consuming the jointly-signed hold implicitly authorises the
-  counterparty for the archive). Fixed the same evening; the regression test
-  `test_issuer_cannot_release_alone` pins it, and demo check 4 exercises it
-  live. Recorded here because the honest history is part of the evidence.
+**Where the idea came from.** The "explain holds, never invent causes" idea comes
+from HoldWatch, my PayPal AI Hackathon entry (public on Devpost). Provenance is
+not a copy of its code — it's the same honesty rule, moved from "our server
+promises it" to "the ledger enforces it."
 
 MIT licensed. Not affiliated with Digital Asset or the Canton Network.
