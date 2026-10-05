@@ -5,6 +5,7 @@ for the freeze — and lets an auditor check what happened without seeing privat
 details.**
 
 Product site: https://husseinadeiza.github.io/provenance-site/
+Demo video: https://www.youtube.com/watch?v=_dGeWs6aE_o
 Built for HackCanton (Track 1: RWA & Business Workflows). Delivery window Oct 4–9, 2026.
 
 ---
