@@ -114,6 +114,31 @@ wording adjusted: DevNet becomes "validator application submitted" rather than
 a promised in-window deploy. Claiming a DevNet deployment we do not have would
 be exactly the fabrication this product exists to refuse.
 
+**D15 — Plain-language rewrite + the single-machine disclosure goes public.**
+User asked for two things: make it understandable to ordinary people (not
+rigorous writing), and ship real, no false claims. Acted on both:
+- Rewrote every section of the site and the README in plain words: "contract
+  invariant / fabricate into" → "a rule the ledger enforces / no reason box to
+  fill in"; "multi-controller / signatory / observer" → "both sides must act
+  together / signs / watches only"; "re-screened / deterministic" → "we throw
+  the answer away / the plain facts". Jargon kept only in repo/test names.
+- The honesty gap I'd left implicit is now explicit ON THE PUBLIC SITE: a
+  prominent note in the Disclosure section + a dedicated FAQ entry state that
+  the demo runs on one machine where a small server queries the ledger three
+  times (once per role). It proves the RULES — which are the product — but is
+  NOT three people on three wallets. The rule the ledger enforces (both parties
+  sign a release, whoever submits) is identical either way. This is the
+  disclose-the-limitation move the whole product is built on, applied to the
+  product's own marketing.
+- Wallet question answered honestly: NOT required — Canton's FAQ accepts
+  LocalNet for judging, Track 1 asks for a roles UI (which we have), and a real
+  wallet needs the DevNet approval we can't get by Oct 9. Bolted-on fake wallet
+  = the exact fabrication the user told us to avoid.
+
+Verified on the LIVE URL (byte-identical md5 vs pushed tip): 131 text elements,
+0 contrast failures; full page renders; numbers 11/5/13/7 correct; proof.json
+regenerated against the live stack before the gated rebuild.
+
 ---
 
 ## Open items
