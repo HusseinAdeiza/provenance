@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-05T07:21:16Z",
+  "generatedAt": "2026-10-05T07:36:56Z",
   "damlTests": {"ok": 5, "failed": 0},
   "aiScreen":  {"pass": 13, "fail": 0},
   "mcpEval":   {"pass": 7, "fail": 0},
