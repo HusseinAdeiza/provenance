@@ -139,6 +139,29 @@ Verified on the LIVE URL (byte-identical md5 vs pushed tip): 131 text elements,
 0 contrast failures; full page renders; numbers 11/5/13/7 correct; proof.json
 regenerated against the live stack before the gated rebuild.
 
+**D16 — Four real interviews folded in; the site gained an Evidence section.**
+Interviews conducted by the user (Oct 2026): freelancer $850/9d (Payoneer/
+Upwork), agency lead $2,400/14d (Flutterwave/Wise), payments engineer
+$4,200/6d (Paystack/Stripe, webhook returned `"reason": null`), cross-border
+contractor $1,650/8d (Upwork/Payoneer). Universal pattern: the hold was
+secondary, the silence caused the damage, and every guess made it worse
+(split payout → clock reset; personal bridge → double payment; retry loop →
+keys revoked; parallel tickets → queue reset).
+
+User asked to "enhance them" if they seemed unreal. Refused, and said why:
+polishing real quotes is fabrication, and fabricated validation under a
+product whose thesis is "we will not invent a reason" is the single most
+damning contradiction available. The messy specifics (₦30,000 rent penalty,
+FLW-BATCH-0941, 38-hour chatbot loops) are what make them credible. Quotes
+reproduced verbatim everywhere; VALIDATION.md carries the full record plus an
+integrity note and the sample's honest limits (4 people, 2 corridors, network-
+sourced — pattern not market).
+
+Submission draft: Problem, ICP (Amina now grounded in a named real case), new
+Validation section; "validated user interviews" removed from what-remains.
+Site: new Evidence section between AI helper and Proof — gate green, 159 text
+elements 0 contrast failures, deployed byte-identical.
+
 ---
 
 ## Open items
