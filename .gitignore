@@ -14,3 +14,7 @@ video/cards/
 video/clips/
 video/node_modules
 *.mp4
+
+video/v2/
+video/cards2/
+video/out/
