@@ -20,12 +20,10 @@ services:
   - type: web
     name: provenance-demo
     runtime: docker
-    dockerfilePath: ./Dockerfile.render
+    dockerfilePath: ./Dockerfile
     dockerContext: .
     plan: standard           # 2 GB — required, see header
     healthCheckPath: /api/state
     autoDeploy: true
     numInstances: 1
-    # No envVars needed: PROVENANCE_UI_PORT is derived from Render's injected
-    # PORT by docker/boot.sh; no GEMINI key (deterministic mode is the default
-    # and is itself a feature — the product works with no AI).
+    # No envVars needed: PORT is derived from Render. Works without AI key.

@@ -14,7 +14,7 @@
 # serves an empty page is worse than one that refuses to start.
 set -uo pipefail
 cd "$(dirname "$0")/.."
-export PATH="$HOME/.daml/bin:/opt/daml/bin:$PATH"
+export PATH="/root/.daml/bin:/opt/daml/bin:$PATH"
 
 PORT="${PORT:-8090}"
 LEDGER_PORT="${LEDGER_PORT:-6865}"
