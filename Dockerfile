@@ -11,7 +11,7 @@ FROM eclipse-temurin:17-jre-jammy
 
 ENV DEBIAN_FRONTEND=noninteractive \
     DAML_VERSION=2.10.6 \
-    PATH="/opt/daml/bin:${PATH}" \
+    PATH="/root/.daml/bin:${PATH}" \
     PYTHONUNBUFFERED=1
 
 # JRE + python3 + curl (the entrypoint health-checks via curl) + unzip for the SDK
