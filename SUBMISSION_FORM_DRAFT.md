@@ -44,3 +44,28 @@ Provenance is a working proof that a payment hold can be modeled so the ledger e
 - [x] Interviews done — 4 real interviews folded into Problem/ICP/Validation; verbatim record in VALIDATION.md (no embellishment, per the integrity note)
 - [ ] Upload video to YouTube (@web3alphatester) via video/YOUTUBE_UPLOAD_PACK.md; add URL to video field + README
 - [ ] git log confirms all commits in-window; probe disclosure intact in README
+
+## Live Demo Deployment Notes (as of Oct 6 2026)
+
+**Current live demo URL:** https://jean-pst-taken-ended.trycloudflare.com
+
+This URL is powered by a Cloudflare tunnel running on a stable VPS. The tunnel is
+monitored by a watchdog script that will restart it if there's an outage.
+
+**Important:** If the tunnel URL changes (due to a server restart), the submission
+will need to be updated. To avoid this, the intended long-term deployment is to
+Render.com's Standard plan ($25/month), which provides a permanent URL. To deploy:
+
+1. Go to https://dashboard.render.com
+2. New -> Blueprint
+3. Select repo: HusseinAdeiza/provenance
+4. Accept the render.yaml configuration
+5. Create (it will build the Docker image and deploy)
+
+The Dockerfiles (Dockerfile, Dockerfile.render) and docker/boot.sh are ready for
+this deployment. The only manual step is selecting the Blueprint in Render's UI.
+
+**Why Render Standard is needed:**
+- The Canton JVM alone requires 913MB RAM
+- Render's free tier is limited to 512MB
+- Standard plan ($25/month) gives 2GB RAM, sufficient for the demo
