@@ -47,7 +47,7 @@ Provenance is a working proof that a payment hold can be modeled so the ledger e
 
 ## Live Demo Deployment Notes (as of Oct 6 2026 - 10:57 CEST)
 
-**Current live demo URL:** https://secondary-manner-gospel-vids.trycloudflare.com
+**Current live demo URL:** https://population-included-apache-parents.trycloudflare.com
 
 This URL is powered by a Cloudflare tunnel running on a stable VPS. The tunnel is
 monitored by a watchdog script (run via cron every 2 minutes) that will restart
