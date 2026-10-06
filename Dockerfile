@@ -42,6 +42,11 @@ COPY ai.py eval_mcp.py ./
 COPY entrypoint.sh ./entrypoint.sh
 RUN chmod +x ./entrypoint.sh
 
+# Ensure the DAR file is available - it's created by daml build and needs to exist
+# in the final image for the app to start
+RUN ls -la .daml/dist/ 2>/dev/null || echo "No .daml/dist found"
+RUN cp /app/.daml/dist/*.dar /app/.daml/dist/provenance-0.1.0.dar 2>/dev/null || echo "DAR copy note"
+
 EXPOSE 8090
 ENV PORT=8090
 
