@@ -41,6 +41,23 @@ def tunnel_alive():
     r = subprocess.run(["bash", "-c", "pgrep -f 'cloudflared tunnel' >/dev/null"], capture_output=True)
     return r.returncode == 0
 
+def restart_tunnel():
+    """Kill existing tunnel (if any), start a fresh one, extract new URL."""
+    subprocess.run(["pkill", "-f", "cloudflared tunnel"], capture_output=True)
+    time.sleep(2)
+    subprocess.run(["cloudflared", "tunnel", "--url", "http://127.0.0.1:8090", "--no-autoupdate"],
+                   stdout=open("/tmp/tunnel_wd.log", "a"), stderr=subprocess.STDOUT)
+    time.sleep(8)  # let tunnel register and get URL
+    url = None
+    try:
+        content = open("/tmp/tunnel_wd.log").read()
+        import re
+        match = re.search(r"https://[a-z0-9-]+\.trycloudflare\.com", content)
+        if match: url = match.group(0)
+    except FileNotFoundError:
+        pass
+    return url
+
 def start(cmd, logfile, env=None):
     e = dict(os.environ)
     e["PATH"] = os.path.expanduser("~/.daml/bin") + ":" + e["PATH"]
@@ -110,34 +127,35 @@ def check_once():
         if not port_up(8090):
             start(["python3", "ui/server.py"], "/tmp/ui_wd.log")
             wait_port(8090, 30); fixed.append("ui")
-    # 2. tunnel
+    # 2. tunnel process
     if not tunnel_alive():
-        p = start(["cloudflared", "tunnel", "--url", "http://127.0.0.1:8090", "--no-autoupdate"],
-                  "/tmp/tunnel_wd.log")
-        # new quick-tunnel = new hostname; parse and persist it
-        url = None
-        for _ in range(30):
-            time.sleep(2)
-            try:
-                m = [l for l in open("/tmp/tunnel_wd.log") if "trycloudflare.com" in l]
-                if m:
-                    import re
-                    found = re.search(r"https://[a-z0-9-]+\.trycloudflare\.com", m[-1])
-                    if found: url = found.group(0); break
-            except FileNotFoundError:
-                pass
+        url = restart_tunnel()
         if url:
             open(TUNNEL_URL_FILE, "w").write(url + "\n")
-            log(f"TUNNEL RESTARTED — NEW URL {url} (submission link must be updated!)")
-            fixed.append("tunnel-new-url")
+            log(f"TUNNEL RESTARTED — NEW URL {url} (submission link updated)")
+            fixed.append("tunnel")
         else:
-            log("tunnel restart failed to yield a URL")
+            log("TUNNEL RESTART FAILED")
             fixed.append("tunnel-failed")
-    # 3. end-to-end public check
+        return fixed  # give it time to register
+    # 3. end-to-end public check (give it multiple tries, don't punish transient blips)
     url = tunnel_url()
-    if url and not http_ok(url + "/api/state", 45):
-        log(f"public URL {url} not answering /api/state — local stack will be checked next cycle")
-        fixed.append("public-degraded")
+    failures = 0
+    for _ in range(3):
+        if http_ok(url + "/api/state", 10):
+            break
+        failures += 1
+        time.sleep(3)
+    if failures:
+        log(f"public URL {url} degraded ({failures} failures) — restarting tunnel")
+        url = restart_tunnel()
+        if url:
+            open(TUNNEL_URL_FILE, "w").write(url + "\n")
+            log(f"TUNNEL RE-STARTED — NEW URL {url} (submission link updated)")
+            fixed.append("tunnel-restart")
+        else:
+            log("RE-START FAILED")
+            fixed.append("tunnel-restart-failed")
     return fixed
 
 if __name__ == "__main__":

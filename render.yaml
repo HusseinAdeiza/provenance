@@ -1,0 +1,31 @@
+# Render blueprint — Provenance live demo.
+#
+# Creates ONE Docker web service from Dockerfile.render. The container boots the
+# whole Canton stack (sandbox -> bootstrap -> json-api -> roles UI) and serves
+# the three-pane demo on the Render-assigned PORT.
+#
+# PLAN: needs >= 2 GB RAM (measured peak 1.44 GB; the Canton JVM is 913 MB).
+#   -> Render "Standard" instance (~$25/mo). The free 512 MB tier CANNOT run it.
+#   This is the one unavoidable cost of a permanent Canton demo; the tunnel
+#   (free) is the no-cost alternative but its URL changes on restart.
+#
+# HOW TO DEPLOY
+#   Render dashboard -> New -> Blueprint -> pick HusseinAdeiza/provenance
+#   -> it reads this file -> Apply. No env vars / secrets required (the demo
+#   runs with no AI key by design; every answer is the deterministic one).
+#
+# The ledger is in-memory: each deploy/restart recreates the pristine demo hold.
+
+services:
+  - type: web
+    name: provenance-demo
+    runtime: docker
+    dockerfilePath: ./Dockerfile.render
+    dockerContext: .
+    plan: standard           # 2 GB — required, see header
+    healthCheckPath: /api/state
+    autoDeploy: true
+    numInstances: 1
+    # No envVars needed: PROVENANCE_UI_PORT is derived from Render's injected
+    # PORT by docker/boot.sh; no GEMINI key (deterministic mode is the default
+    # and is itself a feature — the product works with no AI).

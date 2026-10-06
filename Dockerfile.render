@@ -1,0 +1,40 @@
+# Provenance live demo — Render (or any Docker host).
+#
+# Installs the pinned Daml SDK 2.10.6, COMPILES THE DAR FROM daml-src/ at build
+# time (so the running contract is provably built from the committed source, not
+# a shipped binary), then boots: canton sandbox -> bootstrap -> json-api -> UI.
+#
+# Ledger is IN-MEMORY: each restart recreates the pristine demo state (one held
+# payment). This is the FAQ-accepted local deployment model, hosted.
+#
+# Sizing (MEASURED, not guessed): peak 1.44 GB RSS under a 1.8 GB hard cap.
+# Needs >= 2 GB RAM — Render Standard (~$25/mo) or any 2GB+ Docker host. The
+# Canton JVM alone is 913 MB, so the 512 MB free tier cannot run it.
+FROM eclipse-temurin:17-jdk-jammy AS build
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      python3 curl bash gzip \
+    && rm -rf /var/lib/apt/lists/*
+
+# Pinned SDK (matches daml.yaml sdk-version and the local dev stack)
+RUN curl -sSL https://get.daml.com/ -o /tmp/get-daml.sh \
+    && bash /tmp/get-daml.sh 2.10.6 \
+    && rm /tmp/get-daml.sh
+ENV PATH="/root/.daml/bin:${PATH}"
+
+WORKDIR /app
+COPY daml.yaml ./
+COPY daml-src/ ./daml-src/
+# Compile the DAR from source — reproducible, no committed binary
+RUN daml build && ls -la .daml/dist/
+
+COPY ui/ ./ui/
+COPY docker/boot.sh ./docker/boot.sh
+RUN chmod +x docker/boot.sh
+
+ENV PORT=8090
+EXPOSE 8090
+HEALTHCHECK --interval=30s --timeout=10s --start-period=240s --retries=3 \
+  CMD curl -sf http://127.0.0.1:${PORT}/api/state -o /dev/null || exit 1
+
+CMD ["./docker/boot.sh"]

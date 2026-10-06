@@ -1,0 +1,9 @@
+.daml/
+video/
+demo/watchdog.log
+*.log
+__pycache__/
+node_modules/
+out/
+dist/
+v2/
