@@ -41,6 +41,12 @@ wait_for_port() { # port seconds
   return 1
 }
 
+# Ensure DAR exists - build if necessary (handles both in-image builds and lazy init)
+if [ ! -f "$DAR" ]; then
+  log "DAR not found, running daml build..."
+  daml build || log "Warning: daml build may have completed with warnings"
+fi
+
 [ -f "$DAR" ] || die "missing $DAR — the Daml package must be built into the image"
 
 # 1 ── sandbox
