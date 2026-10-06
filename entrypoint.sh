@@ -13,7 +13,7 @@
 # script fails loudly if any stage never comes up — a demo that half-boots and
 # serves an empty page is worse than one that refuses to start.
 set -uo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")"
 export PATH="/root/.daml/bin:/opt/daml/bin:$PATH"
 
 PORT="${PORT:-8090}"
